@@ -1,0 +1,46 @@
+name: manageit
+services:
+  manageit-web:
+    image: ${DOCKERHUB_USERNAME:?Set DOCKERHUB_USERNAME}/manageitv1:${IMAGE_TAG:?Set IMAGE_TAG}
+    restart: unless-stopped
+    env_file: .env.prod
+    volumes:
+      - static_data:/app/staticfiles
+      - media_data:/app/media
+    networks:
+      - app
+      - database
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket; s=socket.create_connection(('127.0.0.1',8000),3); s.close()"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    security_opt:
+      - no-new-privileges:true
+
+  manageit-nginx:
+    image: nginx:stable-alpine
+    restart: unless-stopped
+    ports:
+      - "8081:80"
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - static_data:/srv/static:ro
+      - media_data:/srv/media:ro
+    depends_on:
+      manageit-web:
+        condition: service_healthy
+    networks:
+      - app
+
+networks:
+  app:
+    name: manageit_app
+  database:
+    external: true
+    name: ${MYSQL_NETWORK:?Set MYSQL_NETWORK to the existing MySQL network}
+
+volumes:
+  static_data:
+  media_data:
